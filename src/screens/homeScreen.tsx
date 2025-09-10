@@ -1,250 +1,427 @@
-import React, { useRef, useState } from "react";
-import { FlatList, Pressable, StatusBar, Text, TouchableOpacity, View } from "react-native";
-import Video from "react-native-video";
-import VideoPlayer from 'react-native-video-controls';
-import { Button, Card, Icon, Input } from 'react-native-elements'
-import { SketchCanvas } from '@sourcetoad/react-native-sketch-canvas';
-import Fontisto from "react-native-vector-icons/Fontisto"
-// import DocumentPicker from 'react-native-document-picker';
-import { DocumentPickerResponse, pick, types } from "@react-native-documents/picker";
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import Popover from 'react-native-popover-view';
+// import { Gesture, GestureDetector } from "react-native-gesture-handler";
+// import Animated, { useSharedValue } from "react-native-reanimated";
+import React, { useEffect, useRef, useState } from "react";
+import { Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { Icon, Image, Input } from "react-native-elements";
+import Video, { VideoRef } from "react-native-video";
+import Slider from '@react-native-community/slider'
+import Popover from "react-native-popover-view";
+import { SketchCanvas } from "@sourcetoad/react-native-sketch-canvas";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 
-export default function HomeScreen() {
-    const videoRef = useRef(null)
-    const currentTimeRef = useRef(0)
-    const [comment, setComment] = useState('')
-    const [strokeWidth, setStrokeWidth] = useState(5);
+type commentType = {
+    id: number
+    name: string,
+    profile: string,
+    time: string,
+    comment: {
+        value: string,
+        timeStamp?: string | number
+        ancherComment?: { x: number, y: number } | null
+        drawPath?: any
+    }
+    replay: commentType[]
+}
+
+export default function NewHomeScreen() {
+    const currDate = new Date()
+    // const offset = useSharedValue(0);
+    const newVideoRef = useRef<VideoRef>(null);
+    const [isPlay, setIsPlay] = useState(false)
+    const [isMute, setIsMute] = useState(false)
+    const [isFullScreen, setIsFullScreen] = useState(false)
+
+    const [totalDuration, setTotalDuration] = useState(0)
+    const [currentTime, setCurrentTime] = useState(0)
+
+    const [currComment, setCurrComment] = useState("")
+    const [timeStamp, setTimeStamp] = useState<number>()
+    const [anchorComment, setAnchorComment] = useState(false)
+    const [tapPosition, setTapPosition] = useState<{ x: number, y: number } | null>(null);
+    const [popoverVisible, setPopoverVisible] = useState(false)
+
+    const drawRef = useRef<SketchCanvas>(null);
     const [strokeColor, setStrokeColor] = useState('')
-    const drawRef = useRef(null);
-    const [list, setList] = useState([
-        { title: 'Public', selected: true },
-        { title: 'internal', selected: false }
-    ])
     const [sketch, setSketch] = useState(false)
-    const [openPop, setOpenPop] = useState(-1)
-    const [selected, setSelected] = useState()
-    const [file, setFile] = useState(0);
-    const [paused, setPaused] = useState(false)
+    const [pendingPaths, setPendingPaths] = useState<any[]>([]);
 
-    const [data, setData] = useState
-        ([{
-            time: "03.03",
-            comment: 'hello Hi buding'
+    const [commentData, setCommentData] = useState<commentType[]>([{
+        id: Number(currDate?.toTimeString()),
+        name: "Jhon",
+        profile: "https://cdn-icons-png.freepik.com/512/145/145849.png?ga=GA1.1.1730792095.1752725888",
+        time: currDate.toLocaleTimeString([], {
+            hour: 'numeric',
+            minute: '2-digit',
+            hour12: true,
+        }),
+        comment: {
+            timeStamp: "00.09",
+            value: "this is my comment",
+        },
+        replay: []
+    }])
+
+    useEffect(() => {
+        if (drawRef.current && pendingPaths.length) {
+            requestAnimationFrame(() => {
+                drawRef.current?.clear();
+                pendingPaths.forEach((path) => drawRef.current?.addPath(path));
+                setPendingPaths([]);
+            });
         }
-        ])
-    const [timer, setTimer] = useState(true)
-
-    const handleProgress = ({ currentTime }: { currentTime: number }) => {
-        // currentTimeRef.current = currentTime;
-        // setFile()
-    };
-
-    // const uploadFile = (response: DocumentPickerResponse[]) => {
-    //     const size = response[0]?.size ? response[0]?.size / 1024 / 1024 : 0
-    //     const index = response[0]?.name ? response[0]?.name.lastIndexOf('.') : -1
-    //     const fileName = response[0]?.name ? response[0]?.name.slice(0, index) : ''
-    //     if (size <= fileSize?.fileSize) {
-    //         const ext = response[0]?.name ? response[0]?.name.substring(response[0]?.name.lastIndexOf('.') + 1) : ''
-    //         const extIndex = fileDetails.fileFormat.findIndex(item => item === ext);
-    //         if (extIndex === -1) {
-    //             Snackbar.show({
-    //                 text: response[0]?.name + fileDetails.fileErrorMessage.format,
-    //                 duration: Snackbar.LENGTH_LONG,
-    //                 fontFamily: appFonts.medium,
-    //                 numberOfLines: 4
-    //             });
-    //         } else {
-    //             const indexSize = fileDetails.filesize.filter(item => item.minInd <= extIndex && extIndex <= item.maxInd)
-    //             const data = { size: size > 0.009 ? size : 0.01, name: fileName, fileData: { size: size, type: ext }, ext: ext, img: indexSize[0].img, date: new Date() };
-    //             const temp = { size: size > 0.009 ? size : 0.01, name: fileName, date: new Date(), ext: ext }
-    //             setFileResponse(data);
-    //             setFileDatas(temp);
-    //             setShowRemoveChip(true)
-    //             setButtonDisplay(true);
-    //         }
-    //     } else {
-    //         Snackbar.show({
-    //             text: fileDetails.fileErrorMessage.size,
-    //             duration: Snackbar.LENGTH_LONG,
-    //             fontFamily: appFonts.medium,
-    //         });
-    //     }
-    // }
+    }, [pendingPaths]);
 
 
-    const renderItem = ({ item, index }: { item: { time: string; comment: string }; index: number }) => {
-        return (
-            <Pressable>
-                <Card containerStyle={{ borderRadius: 10, elevation: 10 }}>
-                    <View>
-                        <TouchableOpacity style={{ flexDirection: 'row' }}>
-                            <Text style={{ padding: 3, color: '#ffc500cc', backgroundColor: 'rgba(255, 196, 0, 0.2)' }}>{item?.time}</Text>
-                            <Text style={{ textAlign: 'center', alignSelf: 'center', marginHorizontal: 5 }}>{item?.comment}</Text>
-                        </TouchableOpacity>
-                    </View>
-                </Card>
-            </Pressable>
-        )
+    useEffect(() => {
+        const AsyncFunction = async () => {
+            const Storage = await AsyncStorage.getItem('comments')
+            setCommentData(Storage ? JSON.parse(Storage) : [])
+        }
+        AsyncFunction()
+    }, [])
+
+    const onComment = async (path?: any) => {
+        setCommentData((prev) => {
+            let data = [...prev]
+            const currDate = new Date()
+            data.push({
+                id: Number(currDate?.toTimeString()),
+                name: "Jhon",
+                profile: "https://cdn-icons-png.freepik.com/512/145/145849.png?ga=GA1.1.1730792095.1752725888",
+                time: currDate.toLocaleTimeString([], {
+                    hour: 'numeric',
+                    minute: '2-digit',
+                    hour12: true,
+                }),
+                comment: {
+                    timeStamp: timeStamp != undefined ? timeStamp : "",
+                    ancherComment: tapPosition ? { x: tapPosition?.x, y: tapPosition?.y } : null,
+                    // editComment?: string,
+                    value: currComment,
+                    drawPath: path || null
+                },
+                replay: []
+            })
+            AsyncStorage.setItem('comments', JSON.stringify(data));
+            return data
+        })
+        setPopoverVisible(false)
+        setTapPosition(null)
+        setTimeStamp(undefined)
+        setCurrComment("")
+        setAnchorComment(false)
+        setSketch(false)
+        drawRef.current?.clear();
     }
 
+    const deleteComment = async (index: number) => {
+        setCommentData((prev) => {
+            let data = [...prev]
+            data = data.filter((_, itemIndex) => itemIndex !== index)
+            AsyncStorage.setItem('comments', JSON.stringify(data));
+            return data
+        })
+    }
+    const formatTime = (num: number) => {
+        let min = Math.floor(num / 60).toString().padStart(2, "0")
+        let sec = Math.floor(num % 60).toString().padStart(2, "0")
+        return min + ":" + sec
+    }
 
-    // const pickFile = async () => {
-    //     try {
-    //         const res = await DocumentPicker.pick({
-    //             type: [DocumentPicker.types.allFiles], // you can restrict to images/docs if needed
-    //         });
-    //         console.log("Picked file:", res[0]);
-    //         setFile(res[0]); // store file info
-    //     } catch (err) {
-    //         if (DocumentPicker.isCancel(err)) {
-    //             console.log("User cancelled file picker");
-    //         } else {
-    //             throw err;
-    //         }
-    //     }
-    // };
-    const saveComment = async (commentText: string) => {
-        try {
-            // Get existing comments
-            const existingData = await AsyncStorage.getItem("Comments");
-            let comments = existingData ? JSON.parse(existingData) : [];
-
-            // Create new comment object
-            const newComment = {
-                id: Date.now(),
-                comment: commentText,
-                time: currentTimeRef.current,
-            };
-
-            // Push new comment to array
-            comments.push(newComment);
-
-            // Save back to AsyncStorage
-            setData(comments)
-            await AsyncStorage.setItem("Comments", JSON.stringify(comments));
-            setComment('')
-
-            console.log("Comment saved:", newComment);
-        } catch (error) {
-            console.error("Error saving comment:", error);
-        }
-    };
-
+    // const panGesture = Gesture.Pan()
+    // 	.minPointers(1)
+    // 	.onUpdate((e) => {
+    // 		if (e.translationX > 20) {
+    // 			newVideoRef.current?.seek(currentTime + 5);
+    // 		} else if (e.translationX < -20) {
+    // 			newVideoRef.current?.seek(currentTime - 5);
+    // 		}
+    // 	});
+    // const longPressGesture = Gesture.LongPress().onStart(() => {
+    // 	console.log("Long press started, now drag to seek");
+    // });
+    // const composedGesture = Gesture.Simultaneous(longPressGesture, panGesture);
 
     return (
         <View style={{ flex: 1 }}>
-            <View style={{ height: StatusBar.currentHeight, backgroundColor: 'black' }}>
-                <StatusBar barStyle={'light-content'} />
-            </View>
-
-            <View style={{ backgroundColor: 'black', height: '30%', width: '100%' }}>
-
-                <VideoPlayer
-                    ref={videoRef}
-                    source={require('../assests/bike.mp4')}
-                    style={{ width: '100%', height: '100%' }}
-                    resizeMode='contain'
-                    paused={paused}
-                    onProgress={handleProgress}
-                    seekColor={"#007BFF"}
-                    tapAnywhereToPause={true}
-                />
-
-                {/* Only show SketchCanvas when sketch is true */}
-                {sketch && (
-                    <SketchCanvas
+            <View style={[!isFullScreen ? { height: 290, margin: 10, borderRadius: 15, overflow: "hidden" } :
+                { height: "100%", width: "100%", justifyContent: "center", alignItems: "center", }
+            ]}>
+                {/* <GestureDetector gesture={composedGesture}> */}
+                {/* <Animated.View style={{ flex: 1 }}> */}
+                <View style={{ width: "100%", height: 250 }}>
+                    <Video
+                        style={{ width: "100%", height: "100%", }}
+                        ref={newVideoRef}
+                        muted={isMute}
+                        paused={!isPlay}
+                        repeat
+                        onPlaybackRateChange={(data) => {
+                            setIsPlay(data?.playbackRate ? true : false)
+                        }}
+                        resizeMode="cover"
+                        onFullscreenPlayerDidDismiss={() => setIsFullScreen(false)}
+                        onLoad={(data) => {
+                            setTotalDuration(data?.duration)
+                            setIsPlay(true)
+                        }
+                        }
+                        onProgress={(data) => setCurrentTime(data?.currentTime)}
+                        source={{ uri: "http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4" }}
+                    />
+                    {(sketch && !anchorComment && !isPlay) && <SketchCanvas
                         ref={drawRef}
                         strokeColor={strokeColor || ''}
                         strokeWidth={5}
-                        style={{ height: '100%', width: "100%", position: 'absolute', backgroundColor: 'transparent', borderRadius: 10 }}
+                        style={{ height: '100%', width: "100%", position: 'absolute', backgroundColor: 'transparent', borderRadius: 10, zIndex: 1000 }}
+                    />}
+                    {/* Transparent touch layer */}
+                    <Pressable
+                        style={{
+                            ...StyleSheet.absoluteFillObject
+                        }}
+                        onPress={(event) => {
+                            if (anchorComment) {
+                                const { locationX, locationY } = event.nativeEvent;
+                                setCurrComment("")
+                                setTapPosition({ x: locationX, y: locationY });
+                                setTimeStamp(currentTime)
+                                setPopoverVisible(true)
+                            }
+                        }}
                     />
-                )}
-            </View>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', padding: 10 }}>
-                <View>
-                    <Text>All Comments</Text>
+                    {tapPosition && (
+                        <Popover
+                            isVisible={popoverVisible}
+                            arrowSize={{ width: 0, height: 0 }}
+                            popoverStyle={[
+                                {
+                                    backgroundColor: "white"
+                                },
+                                {
+                                    borderStyle: "solid",
+                                    borderLeftWidth: 8,
+                                    borderRightWidth: 8,
+                                    borderTopWidth: 4,
+                                    borderBottomWidth: 4,
+                                    borderLeftColor: "transparent",
+                                    borderRightColor: "transparent",
+                                    borderBottomColor: "white",
+                                    borderTopColor: "white",
+                                    borderRadius: 8,
+                                    right: -20,
+                                    marginTop: 10
+                                }
+                            ]}
+                            onRequestClose={() => setPopoverVisible(false)}
+                            backgroundStyle={[{ backgroundColor: "transparent" }]}
+                            from={
+                                <View
+                                    style={{
+                                        position: "absolute",
+                                        left: tapPosition.x - 15, // center adjust
+                                        top: tapPosition.y - 15,
+                                    }}
+                                >
+                                    <Icon name={"location-outline"} type="ionicon" color={"blue"} onPress={() => setPopoverVisible(true)} />
+                                </View>
+                            }
+                        >
+                            <View style={{ width: "100%" }}>
+                                <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 10 }}>
+                                    <Image source={{ uri: "https://cdn-icons-png.freepik.com/512/145/145849.png?ga=GA1.1.1730792095.1752725888" }} style={{ width: 40, height: 40, borderRadius: 10 }} resizeMode="contain" />
+                                    <View style={{ flex: 1, flexDirection: "row", alignItems: "flex-start" }}>
+                                        {tapPosition ?
+                                            <Icon name={"location-outline"} style={{ paddingTop: 10 }} type="ionicon" color={"blue"} />
+                                            : <></>}
+                                        <Text style={{ color: "blue", top: 7, borderRadius: 5, padding: 5, backgroundColor: "white" }}>{formatTime(Number(currentTime))}</Text>
+                                        <Input
+                                            placeholder="Write your comment here"
+                                            inputStyle={{}}
+                                            value={currComment}
+                                            onChangeText={(text) => setCurrComment(text)}
+                                            numberOfLines={10}
+                                            inputContainerStyle={{ borderBottomWidth: 0, width: "80%", paddingBottom: 15 }}
+                                        />
+                                    </View>
+                                </View>
+                                <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+                                    <TouchableOpacity
+                                        style={{
+                                            flexDirection: "row", alignItems: "center",
+                                            backgroundColor: "white",
+                                            gap: 10, borderWidth: 0.5, borderRadius: 10, padding: 7, paddingHorizontal: 10
+                                        }}>
+                                        <Icon name="clock" type="octicon" />
+                                        <Text>{formatTime(currentTime)}</Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity
+                                        style={[{ padding: 10, borderRadius: 10 }, currComment?.length ? { backgroundColor: "green", } : { backgroundColor: "grey" }]}
+                                        onPress={() => onComment()}
+                                    >
+                                        <Text style={{ color: "white", fontSize: 16, }}>Comment</Text>
+                                    </TouchableOpacity>
+                                </View>
+                            </View>
+                        </Popover>
+                    )}
+
                 </View>
-                <View style={{ flexDirection: 'row', }}>
-                    <TouchableOpacity>
-                        <Icon style={{ paddingHorizontal: 5 }} name="filter-list" type="material" size={20} />
-                    </TouchableOpacity>
-                    <TouchableOpacity>
-                        <Icon style={{ paddingHorizontal: 5 }} name="search" type="material" size={20} />
-                    </TouchableOpacity>
-                </View>
-            </View>
-            <View style={{ flex: 1 }}>
-                <FlatList
-                    data={data}
-                    renderItem={renderItem}
-                    keyExtractor={(item, index) => index.toString()}
-                />
-            </View>
-            <View style={{ marginBottom: 20, backgroundColor: ' #f0f0f072', marginHorizontal: 5, borderRadius: 5 }}>
-                <View style={{ flexDirection: 'row', }}>
-                    {timer ? <Text style={{ padding: 3, color: '#ffc500cc', backgroundColor: 'rgba(255, 196, 0, 0.2)', alignSelf: 'center' }}>{currentTimeRef.current.toFixed(2)}</Text> : undefined}
-                    <Input
-                        onChangeText={setComment}
-                        placeholder="Leave your comment..."
-                        inputContainerStyle={{ borderBottomWidth: 0, width: '91%', borderRadius: 10 }}
-                    // style={{ backgroundColor: "red" }}
+                {/* </Animated.View> */}
+                {/* </GestureDetector> */}
+                <View style={{ backgroundColor: "#2b0009", width: "100%", position: "absolute", bottom: 0 }}>
+                    <Slider
+                        style={{ width: "100%" }}
+                        minimumValue={0}
+                        maximumValue={totalDuration}
+                        value={currentTime}
+                        minimumTrackTintColor="#FFFFFF"
+                        maximumTrackTintColor="#888888"
+                        thumbTintColor="#FFFFFF"
+                        onValueChange={(value) => {
+                            newVideoRef.current?.seek(value);
+                            setCurrentTime(value);
+                        }}
                     />
-                </View>
-                {!sketch ?
-                    <View style={{ flexDirection: 'row', paddingVertical: 10, justifyContent: 'space-between' }}>
-                        <View style={{ flexDirection: 'row' }}>
-                            <TouchableOpacity style={{ marginHorizontal: 5 }} onPress={() => {
-                                setTimer(prev => !prev)
-                            }}>
-                                <Icon color={timer ? 'black' : '#ffc500cc'} name="timer-outline" type='ionicon' size={25} />
-                            </TouchableOpacity>
-                            <TouchableOpacity onPress={() => setSketch(true)}>
-                                <Icon name="draw" type='material' size={25} />
-                            </TouchableOpacity>
-
+                    <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", padding: 10, paddingHorizontal: 20, }}>
+                        <View style={{ flexDirection: "row", alignItems: "center", gap: 15 }}>
+                            <Icon name={isPlay ? "pause" : "play"} type="font-awesome" color={"white"} onPress={() => setIsPlay((prev) => !prev)} />
+                            <Icon name={!isMute ? "volume-up" : "volume-mute"} type="material" size={26} color={"white"} onPress={() => setIsMute((prev) => !prev)} />
                         </View>
-                        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                            {/* <TouchableOpacity onPress={() => setSelected(true)} style={{ flexDirection: 'row', padding: 10 }}>
-                                <Fontisto style={{ paddingHorizontal: 5 }} name="world-o" size={20} />
-                                <Text style={{ fontSize: 16, }}>Public</Text>
-                            </TouchableOpacity> */}
-                            <TouchableOpacity disabled={!paused} onPress={() => saveComment(comment)} style={{ paddingHorizontal: 15, marginHorizontal: 10, paddingVertical: 5, backgroundColor: '#007BFF', borderRadius: 4 }}>
-                                <Icon name="send" type="font-awesome" color={'white'} size={20} />
-                            </TouchableOpacity>
+                        <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
+                            <Text style={{ color: "white" }}>{formatTime(currentTime)}</Text>
+                            <Text style={{ color: "white" }}>/</Text>
+                            <Text style={{ color: "white" }}>{formatTime(totalDuration)}</Text>
                         </View>
-
+                        <View style={{ flexDirection: "row", alignItems: "center", gap: 20 }}>
+                            <TouchableOpacity onPress={() => { anchorComment && setTapPosition(null); setAnchorComment((prev) => !prev) }}>
+                                <Icon name={"location-outline"} type="ionicon" color={anchorComment ? "blue" : "white"} />
+                            </TouchableOpacity>
+                            <Icon name={"expand"} type="font-awesome" color={"white"} onPress={() => setIsFullScreen((prev) => !prev)} />
+                        </View>
                     </View>
-                    :
-                    <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                        {/* Controls */}
-                        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                            <TouchableOpacity onPress={() => setSketch(false)}>
-                                <Icon name="chevron-back-sharp" type='ionicon' size={25} />
-                            </TouchableOpacity>
-                            <TouchableOpacity onPress={() => setStrokeWidth(prev => !prev)}>
-                                <Icon color={strokeWidth ? '#ffc500cc' : 'black'} name="pencil-sharp" type='ionicon' size={25} />
-                            </TouchableOpacity>
-                            <TouchableOpacity style={{ marginHorizontal: 5 }} onPress={() => setStrokeColor(strokeColor === "red" ? "" : "red")}>
-                                <Icon name={strokeColor === "red" ? "circle-slice-8" : "circle"} color={"red"} type='material-community' size={25} />
-                            </TouchableOpacity>
-                            <TouchableOpacity style={{ marginHorizontal: 5 }} onPress={() => setStrokeColor(strokeColor === "pink" ? "" : "pink")}>
-                                <Icon name={strokeColor === "pink" ? "circle-slice-8" : "circle"} color={"pink"} type='material-community' size={25} />
-                            </TouchableOpacity>
-                            <TouchableOpacity style={{ marginHorizontal: 5 }} onPress={() => setStrokeColor(strokeColor === "yellow" ? "" : "yellow")}>
-                                <Icon name={strokeColor === "yellow" ? "circle-slice-8" : "circle"} color={"yellow"} type='material-community' size={25} />
-                            </TouchableOpacity>
-                            <TouchableOpacity style={{ marginHorizontal: 5 }} onPress={() => setStrokeColor(strokeColor === "blue" ? "" : "blue")}>
-                                <Icon name={strokeColor === "blue" ? "circle-slice-8" : "circle"} color={"blue"} type='material-community' size={25} />
-                            </TouchableOpacity>
-                            <TouchableOpacity style={{ marginHorizontal: 5 }} onPress={() => drawRef.current?.undo()}>
-                                <Icon name={"undo-variant"} type='material-community' size={25} />
-                            </TouchableOpacity>
-                        </View>
-
-                    </View>}
+                </View>
             </View>
-        </View>
+            <View style={{ flex: 1, gap: 10 }}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 10 }}>
+                    <Text style={{ color: "black" }}>Comments</Text>
+                    <View style={{ borderWidth: 0.5, borderColor: "grey", borderRadius: 10, padding: 5, paddingHorizontal: 10 }}>
+                        <Text>{commentData?.length}</Text>
+                    </View>
+                </View>
+                <View style={{ flex: 1 }}>
+                    <ScrollView showsHorizontalScrollIndicator={false}>
+                        {
+                            commentData?.map((comment, index) => (
+                                <View key={index} style={{ gap: 15, backgroundColor: "#f9ffeb", paddingHorizontal: 15, padding: 10, marginVertical: 5 }}>
+                                    <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+                                        <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                                            <Image source={{ uri: comment?.profile }} style={{ width: 40, height: 40, borderRadius: 10 }} resizeMode="contain" />
+                                            <Text style={{ fontFamily: 'Roboto', fontSize: 17, fontWeight: 'bold' }}>{comment?.name}</Text>
+                                            <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
+                                                <Text style={{ color: "grey", fontSize: 30, marginTop: -20 }}>.</Text>
+                                                <Text style={{ fontSize: 12 }}>{comment?.time}</Text>
+                                            </View>
+                                        </View>
+                                        <Icon name="delete" color={"red"} type="material-community" onPress={() => { deleteComment(index) }} />
+                                    </View>
+                                    <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+                                        {comment?.comment?.timeStamp ? <TouchableOpacity
+                                            onPress={() => {
+                                                newVideoRef?.current?.seek(Number(comment?.comment?.timeStamp));
+                                                if (comment?.comment?.ancherComment?.x) {
+                                                    setTapPosition({ x: comment?.comment?.ancherComment?.x!!, y: comment?.comment?.ancherComment?.y!! })
+                                                } else {
+                                                    setTapPosition(null)
+                                                }
+                                                setCurrComment(comment.comment.value)
+                                            }} >
+                                            <Text style={{ color: "blue" }}>{formatTime(Number(comment?.comment?.timeStamp))}</Text>
+                                        </TouchableOpacity> : <></>}
+                                        {comment?.comment?.ancherComment ? <TouchableOpacity
+                                            onPress={() => {
+                                                newVideoRef?.current?.seek(Number(comment?.comment?.timeStamp));
+                                                setTapPosition({ x: comment?.comment?.ancherComment?.x!!, y: comment?.comment?.ancherComment?.y!! })
+                                                setCurrComment(comment.comment.value)
+                                            }} >
+                                            <Icon name={"location-outline"} type="ionicon" color={"blue"} />
+                                        </TouchableOpacity> : <></>}
+
+                                        {comment?.comment?.drawPath?.length ?
+                                            <TouchableOpacity
+                                                onPress={() => {
+                                                    newVideoRef?.current?.seek(Number(comment?.comment?.timeStamp));
+                                                    if (comment?.comment?.ancherComment?.x) {
+                                                        setTapPosition({ x: comment?.comment?.ancherComment?.x!!, y: comment?.comment?.ancherComment?.y!! })
+                                                    } else {
+                                                        setTapPosition(null)
+                                                    }
+                                                    setCurrComment(comment.comment.value)
+                                                    if (comment?.comment?.drawPath.length) {
+                                                        setSketch(true);
+                                                        setPendingPaths(comment.comment.drawPath)
+                                                    }
+                                                }} >
+                                                <Icon name="pencil" type="octicon" color={"blue"} />
+                                            </TouchableOpacity> : <></>}
+
+                                        <Text>{comment?.comment?.value}</Text>
+                                    </View>
+                                </View>
+                            ))
+                        }
+                    </ScrollView>
+                </View>
+                <View style={{ backgroundColor: "#f2f2f2", padding: 15 }}>
+                    <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 10 }}>
+                        <Image source={{ uri: "https://cdn-icons-png.freepik.com/512/145/145849.png?ga=GA1.1.1730792095.1752725888" }} style={{ width: 40, height: 40, borderRadius: 10 }} resizeMode="contain" />
+                        <View style={{ flex: 1, flexDirection: "row", alignItems: "flex-start" }}>
+                            {timeStamp != undefined ?
+                                <Text style={{ color: "blue", top: 7, borderRadius: 5, padding: 5, backgroundColor: "white" }}>{formatTime(timeStamp)}</Text>
+                                : <></>}
+                            <Input
+                                placeholder="Write your comment here"
+                                inputStyle={{}}
+                                value={tapPosition ? "" : currComment}
+                                onChangeText={(text) => setCurrComment(text)}
+                                numberOfLines={10}
+                                inputContainerStyle={{ borderBottomWidth: 0, width: "90%", paddingBottom: 25 }}
+                            />
+                        </View>
+                    </View>
+
+                    <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+                        <TouchableOpacity
+                            onPress={() => setTimeStamp((prev) => prev != undefined ? undefined : currentTime)}
+                            style={{
+                                flexDirection: "row", alignItems: "center",
+                                backgroundColor: timeStamp != undefined ? "white" : undefined,
+                                gap: 10, borderWidth: 0.5, borderRadius: 10, padding: 7, paddingHorizontal: 10
+                            }}>
+                            <Icon name="clock" type="octicon" />
+                            <Text>{formatTime(currentTime)}</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                            onPress={() => { setSketch((prev) => !prev); setIsPlay(false); setStrokeColor("blue") }}
+                            style={[{ borderWidth: 0.5, borderRadius: 10, padding: 7, paddingHorizontal: 10 }, sketch && { backgroundColor: "blue" }]}>
+                            <Icon name="pencil" type="octicon" />
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                            // disabled={!(currComment?.length && !anchorComment)}
+                            style={[{ padding: 10, borderRadius: 10 }, (currComment?.length && !anchorComment) ? { backgroundColor: "green", } : { backgroundColor: "grey" }]}
+                            onPress={async () => {
+                                const paths = await drawRef.current?.getPaths()
+                                if ((currComment?.length && !anchorComment) || paths?.length) {
+                                    onComment(paths)
+                                }
+                            }}
+                        >
+                            <Text style={{ color: "white", fontSize: 16, }}>Comment</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </View >
+        </View >
     )
 }
